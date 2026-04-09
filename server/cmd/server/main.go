@@ -9,6 +9,14 @@ func main() {
 
 	repository.InitDB()
 
-	r := api.SetupRouter() 
+	userRepo := repository.NewUserRepository()
+	dropRepo := repository.NewDropRepository()
+	collectionRepo := repository.NewCollectionRepository()
+
+	authHandler := api.NewAuthHandler(userRepo)
+	dropHandler := api.NewDropHandler(dropRepo, userRepo)
+	collectionHandler := api.NewCollectionHandler(collectionRepo, dropRepo)
+
+	r := api.SetupRouter(authHandler, dropHandler, collectionHandler) 
 	r.Run()
 }
