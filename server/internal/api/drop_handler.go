@@ -90,3 +90,17 @@ func (h *DropHandler) CreateDrop(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, drop)
 }
+
+func (h *DropHandler) GetLeaderboard(c *gin.Context) {
+	lb, err := h.userRepo.GetLeaderboard(10);
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leaderboard"})
+	}
+
+	if len(lb) < 1 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Leaderboard is empty"})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"leaderboard": lb})
+}

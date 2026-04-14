@@ -30,6 +30,7 @@ func SetupRouter(
 	api.Use(middleware.AuthMiddleware())
 	{
 		api.POST("/createDrop", dropH.CreateDrop)
+		api.POST("/collect", collH.Collect)
 	}
 
 	return r;
