@@ -10,7 +10,6 @@ import (
 func SetupRouter(
 	authH *AuthHandler,
 	dropH *DropHandler,
-	collH *CollectionHandler,
 ) *gin.Engine {
 	r := gin.Default()
 
@@ -29,9 +28,11 @@ func SetupRouter(
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware())
 	{
-		api.POST("/createDrop", dropH.CreateDrop)
-		api.POST("/collect", collH.Collect)
+		api.POST("/drops", dropH.CreateDrop)
+		api.GET("/drops/heatmap", dropH.GetHeatmap)
+		api.POST("/drops/:id/claim", dropH.ClaimDrop)
+		api.GET("/leaderboard", dropH.GetLeaderboard)
 	}
 
-	return r;
+	return r
 }
