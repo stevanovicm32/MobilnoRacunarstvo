@@ -1,16 +1,13 @@
 package api
 
 import (
-	"fmt"
-	"math/rand"
+	"errors"
 	"net/http"
-	"path/filepath"
 	"strconv"
-	"time"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/stevanovicm32/MobilnoRacunarstvo/internal/model"
 	"github.com/stevanovicm32/MobilnoRacunarstvo/internal/repository"
 )
 
@@ -24,75 +21,107 @@ func NewDropHandler(dr repository.DropRepository, ur repository.UserRepository) 
 }
 
 func (h *DropHandler) CreateDrop(c *gin.Context) {
-	val, _ := c.Get("userID")
-	uid := val.(uuid.UUID)
+	userID := c.MustGet("userID").(uuid.UUID)
 
-	user, err := h.userRepo.GetById(uid)
+	var req struct {
+		Latitude  *float64 `json:"latitude"`
+		Longitude *float64 `json:"longitude"`
+		PhotoURL  string   `json:"photo_url"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON body"})
+		return
+	}
+
+	if req.Latitude == nil || req.Longitude == nil || strings.TrimSpace(req.PhotoURL) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "latitude, longitude, and photo_url are required"})
+		return
+	}
+	if !validCoordinate(*req.Latitude, *req.Longitude) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid latitude or longitude"})
+		return
+	}
+
+	drop, err := h.dropRepo.CreateDrop(c.Request.Context(), userID, *req.Latitude, *req.Longitude, strings.TrimSpace(req.PhotoURL))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		switch {
+		case errors.Is(err, repository.ErrWeeklyLimit):
+			c.JSON(http.StatusConflict, gin.H{"error": "Weekly limit reached"})
+		case errors.Is(err, repository.ErrNearbyDrop):
+			c.JSON(http.StatusConflict, gin.H{"error": "Another active drop is within 50 meters"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create drop"})
+		}
 		return
 	}
 
-	weekLimit := time.Now().AddDate(0, 0, -7)
-	if !user.LastDropAt.IsZero() && user.LastDropAt.After(weekLimit) {
-		nextAvailable := user.LastDropAt.AddDate(0, 0, 7)
-		c.JSON(http.StatusForbidden, gin.H{
-			"error":             "Weekly limit reached",
-			"next_available_at": nextAvailable,
-		})
-		return
-	}
+	c.JSON(http.StatusCreated, gin.H{"drop": drop})
+}
 
-	file, err := c.FormFile("image")
+func (h *DropHandler) GetHeatmap(c *gin.Context) {
+	bbox, err := parseBoundingBox(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Image file is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	lat, _ := strconv.ParseFloat(c.PostForm("latitude"), 64)
-	lng, _ := strconv.ParseFloat(c.PostForm("longitude"), 64)
-	description := c.PostForm("description")
-	hint := c.PostForm("hint")
-
-	filename := fmt.Sprintf("%s_%s", uuid.New().String(), file.Filename)
-	uploadPath := filepath.Join("uploads", filename)
-
-	if err := c.SaveUploadedFile(file, uploadPath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image"})
+	cells, err := h.dropRepo.GetHeatmap(c.Request.Context(), bbox)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load heatmap"})
 		return
 	}
 
-	randomDelay := time.Duration(rand.Intn(24)+1) * time.Hour
+	c.JSON(http.StatusOK, gin.H{"cells": cells})
+}
 
-	drop := &model.Drop{
-		ID:               uuid.New(),
-		CreatorID:        uid,
-		Latitude:         lat,
-		Longitude:        lng,
-		Description:      description,
-		Hint:             hint,
-		ImageURL:         "/" + uploadPath,
-		CreatedAt:        time.Now(),
-		ActivationTime:   time.Now().Add(randomDelay),
-		IsCollectedCount: 0,
-	}
+func (h *DropHandler) ClaimDrop(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
 
-	if err := h.dropRepo.Create(drop); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create drop record"})
+	dropID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid drop ID"})
 		return
 	}
 
-	user.LastDropAt = time.Now()
-
-	if err := h.userRepo.Update(user); err != nil {
-		fmt.Printf("Failed to update users last drop time")
+	var req struct {
+		Latitude  *float64 `json:"latitude"`
+		Longitude *float64 `json:"longitude"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON body"})
+		return
+	}
+	if req.Latitude == nil || req.Longitude == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "latitude and longitude are required"})
+		return
+	}
+	if !validCoordinate(*req.Latitude, *req.Longitude) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid latitude or longitude"})
+		return
 	}
 
-	c.JSON(http.StatusCreated, drop)
+	claim, err := h.dropRepo.ClaimDrop(c.Request.Context(), userID, dropID, *req.Latitude, *req.Longitude)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrDropNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Drop not found"})
+		case errors.Is(err, repository.ErrDropInactive):
+			c.JSON(http.StatusConflict, gin.H{"error": "Drop is not active yet"})
+		case errors.Is(err, repository.ErrTooFarFromDrop):
+			c.JSON(http.StatusForbidden, gin.H{"error": "You must be within 20 meters of the drop"})
+		case errors.Is(err, repository.ErrAlreadyClaimed):
+			c.JSON(http.StatusConflict, gin.H{"error": "You have already claimed this drop"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to claim drop"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"claim": claim})
 }
 
 func (h *DropHandler) GetLeaderboard(c *gin.Context) {
-	lb, err := h.userRepo.GetLeaderboard(10);
+	lb, err := h.userRepo.GetLeaderboard(10)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leaderboard"})
@@ -103,4 +132,55 @@ func (h *DropHandler) GetLeaderboard(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"leaderboard": lb})
+}
+
+func validCoordinate(latitude, longitude float64) bool {
+	return latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180
+}
+
+func parseBoundingBox(c *gin.Context) (repository.BoundingBox, error) {
+	minLat, err := parseRequiredFloat(c, "min_lat")
+	if err != nil {
+		return repository.BoundingBox{}, err
+	}
+	minLng, err := parseRequiredFloat(c, "min_lng")
+	if err != nil {
+		return repository.BoundingBox{}, err
+	}
+	maxLat, err := parseRequiredFloat(c, "max_lat")
+	if err != nil {
+		return repository.BoundingBox{}, err
+	}
+	maxLng, err := parseRequiredFloat(c, "max_lng")
+	if err != nil {
+		return repository.BoundingBox{}, err
+	}
+
+	if !validCoordinate(minLat, minLng) || !validCoordinate(maxLat, maxLng) {
+		return repository.BoundingBox{}, errors.New("Invalid bounding box coordinates")
+	}
+	if minLat >= maxLat || minLng >= maxLng {
+		return repository.BoundingBox{}, errors.New("Invalid bounding box range")
+	}
+
+	return repository.BoundingBox{
+		MinLat: minLat,
+		MinLng: minLng,
+		MaxLat: maxLat,
+		MaxLng: maxLng,
+	}, nil
+}
+
+func parseRequiredFloat(c *gin.Context, name string) (float64, error) {
+	value := c.Query(name)
+	if value == "" {
+		return 0, errors.New(name + " is required")
+	}
+
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, errors.New(name + " must be a number")
+	}
+
+	return parsed, nil
 }

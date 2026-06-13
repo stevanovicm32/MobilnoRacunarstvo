@@ -7,9 +7,9 @@ import (
 )
 
 type User struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	Username     string    `gorm:"unique;not null" json:"username"`
+	ID           uuid.UUID `json:"id"`
+	Username     string    `json:"username"`
 	PasswordHash string    `json:"-"`
-	TotalPoints  int       `gorm:"default:0" json:"total_points"`
-	LastDropAt   time.Time `json:"last_drop_at"`
+	TotalPoints  int       `json:"total_points"`
+	CreatedAt    time.Time `json:"created_at"`
 }
