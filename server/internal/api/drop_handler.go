@@ -74,6 +74,45 @@ func (h *DropHandler) GetHeatmap(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"cells": cells})
 }
 
+func (h *DropHandler) GetNearbyDrops(c *gin.Context) {
+	latitude, err := parseRequiredFloat(c, "latitude")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	longitude, err := parseRequiredFloat(c, "longitude")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !validCoordinate(latitude, longitude) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid latitude or longitude"})
+		return
+	}
+
+	radius := 20.0
+	if radiusParam := c.Query("radius"); radiusParam != "" {
+		parsed, err := strconv.ParseFloat(radiusParam, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "radius must be a number"})
+			return
+		}
+		radius = parsed
+	}
+	if radius <= 0 || radius > 50 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "radius must be between 1 and 50"})
+		return
+	}
+
+	drops, err := h.dropRepo.GetNearbyDrops(c.Request.Context(), latitude, longitude, radius)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load nearby drops"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"drops": drops})
+}
+
 func (h *DropHandler) ClaimDrop(c *gin.Context) {
 	userID := c.MustGet("userID").(uuid.UUID)
 

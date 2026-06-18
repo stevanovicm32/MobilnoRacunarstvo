@@ -30,6 +30,7 @@ func SetupRouter(
 	{
 		api.POST("/drops", dropH.CreateDrop)
 		api.GET("/drops/heatmap", dropH.GetHeatmap)
+		api.GET("/drops/nearby", dropH.GetNearbyDrops)
 		api.POST("/drops/:id/claim", dropH.ClaimDrop)
 		api.GET("/leaderboard", dropH.GetLeaderboard)
 	}

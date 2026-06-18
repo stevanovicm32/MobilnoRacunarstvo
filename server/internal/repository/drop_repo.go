@@ -32,9 +32,18 @@ type HeatmapCell struct {
 	Count     int     `json:"count"`
 }
 
+type NearbyDrop struct {
+	ID              uuid.UUID `json:"id"`
+	Latitude        float64   `json:"latitude"`
+	Longitude       float64   `json:"longitude"`
+	PhotoURL        string    `json:"photo_url"`
+	DistanceMeters  float64   `json:"distance_meters"`
+}
+
 type DropRepository interface {
 	CreateDrop(ctx context.Context, creatorID uuid.UUID, latitude, longitude float64, photoURL string) (*model.Drop, error)
 	GetHeatmap(ctx context.Context, bbox BoundingBox) ([]HeatmapCell, error)
+	GetNearbyDrops(ctx context.Context, latitude, longitude float64, radiusMeters float64) ([]NearbyDrop, error)
 	ClaimDrop(ctx context.Context, userID, dropID uuid.UUID, latitude, longitude float64) (*model.Claim, error)
 }
 
@@ -144,6 +153,46 @@ func (r *postgresDropRepository) GetHeatmap(ctx context.Context, bbox BoundingBo
 	}
 
 	return cells, rows.Err()
+}
+
+func (r *postgresDropRepository) GetNearbyDrops(ctx context.Context, latitude, longitude float64, radiusMeters float64) ([]NearbyDrop, error) {
+	rows, err := DB.Query(
+		ctx,
+		`SELECT id,
+		        ST_Y(location::geometry) AS latitude,
+		        ST_X(location::geometry) AS longitude,
+		        photo_url,
+		        ST_Distance(
+		          location,
+		          ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+		        ) AS distance_meters
+		 FROM drops
+		 WHERE active_at <= now()
+		   AND ST_DWithin(
+		         location,
+		         ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+		         $3
+		       )
+		 ORDER BY distance_meters ASC`,
+		longitude,
+		latitude,
+		radiusMeters,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var drops []NearbyDrop
+	for rows.Next() {
+		var drop NearbyDrop
+		if err := rows.Scan(&drop.ID, &drop.Latitude, &drop.Longitude, &drop.PhotoURL, &drop.DistanceMeters); err != nil {
+			return nil, err
+		}
+		drops = append(drops, drop)
+	}
+
+	return drops, rows.Err()
 }
 
 func (r *postgresDropRepository) ClaimDrop(ctx context.Context, userID, dropID uuid.UUID, latitude, longitude float64) (*model.Claim, error) {
