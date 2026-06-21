@@ -34,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,18 +44,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.Circle
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapProperties
-import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.MarkerState
-import com.google.maps.android.compose.rememberCameraPositionState
 import com.stevanovicm32.mobilnoracunarstvo.GameApp
-import kotlinx.coroutines.flow.distinctUntilChanged
 import java.io.File
 
 @OptIn(ExperimentalPermissionsApi::class)
@@ -128,45 +116,6 @@ fun MapScreen(
         if (locationPermissions.allPermissionsGranted) {
             viewModel.startLocationTracking()
         }
-    }
-
-    val defaultLocation = LatLng(44.816, 20.460)
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(
-            uiState.userLocation ?: defaultLocation,
-            15f,
-        )
-    }
-
-    LaunchedEffect(uiState.userLocation) {
-        uiState.userLocation?.let { location ->
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLng(location),
-                durationMs = 600,
-            )
-        }
-    }
-
-    // Fetch heatmap when the map camera stops moving.
-    LaunchedEffect(cameraPositionState) {
-        snapshotFlow { cameraPositionState.isMoving }
-            .distinctUntilChanged()
-            .collect { isMoving ->
-                if (!isMoving) {
-                    val projection = cameraPositionState.projection
-                    if (projection != null) {
-                        val bounds = projection.visibleRegion.latLngBounds
-                        viewModel.onCameraIdle(
-                            CameraBounds(
-                                minLat = bounds.southwest.latitude,
-                                minLng = bounds.southwest.longitude,
-                                maxLat = bounds.northeast.latitude,
-                                maxLng = bounds.northeast.longitude,
-                            ),
-                        )
-                    }
-                }
-            }
     }
 
     if (!locationPermissions.allPermissionsGranted) {
@@ -259,32 +208,13 @@ fun MapScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            GoogleMap(
+            OsmMap(
                 modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState,
-                properties = MapProperties(isMyLocationEnabled = true),
-                uiSettings = MapUiSettings(
-                    myLocationButtonEnabled = true,
-                    zoomControlsEnabled = false,
-                ),
-            ) {
-                uiState.heatmapCells.forEach { cell ->
-                    val alpha = (0.15f + (cell.count.coerceAtMost(10) * 0.05f)).coerceAtMost(0.6f)
-                    Circle(
-                        center = LatLng(cell.latitude, cell.longitude),
-                        radius = 550.0,
-                        fillColor = Color(0xFF4CAF50).copy(alpha = alpha),
-                        strokeColor = Color.Transparent,
-                    )
-                }
-
-                uiState.nearbyDrops.forEach { drop ->
-                    Marker(
-                        state = MarkerState(LatLng(drop.latitude, drop.longitude)),
-                        title = "Claimable drop",
-                    )
-                }
-            }
+                userLocation = uiState.userLocation,
+                heatmapCells = uiState.heatmapCells,
+                nearbyDrops = uiState.nearbyDrops,
+                onCameraIdle = viewModel::onCameraIdle,
+            )
 
             if (uiState.isLoadingHeatmap) {
                 CircularProgressIndicator(
