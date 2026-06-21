@@ -161,13 +161,9 @@ func (h *DropHandler) ClaimDrop(c *gin.Context) {
 
 func (h *DropHandler) GetLeaderboard(c *gin.Context) {
 	lb, err := h.userRepo.GetLeaderboard(10)
-
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leaderboard"})
-	}
-
-	if len(lb) < 1 {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Leaderboard is empty"})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"leaderboard": lb})

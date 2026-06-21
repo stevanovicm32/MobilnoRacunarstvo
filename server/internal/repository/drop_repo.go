@@ -143,7 +143,7 @@ func (r *postgresDropRepository) GetHeatmap(ctx context.Context, bbox BoundingBo
 	}
 	defer rows.Close()
 
-	var cells []HeatmapCell
+	cells := make([]HeatmapCell, 0)
 	for rows.Next() {
 		var cell HeatmapCell
 		if err := rows.Scan(&cell.Latitude, &cell.Longitude, &cell.Count); err != nil {
@@ -183,7 +183,7 @@ func (r *postgresDropRepository) GetNearbyDrops(ctx context.Context, latitude, l
 	}
 	defer rows.Close()
 
-	var drops []NearbyDrop
+	drops := make([]NearbyDrop, 0)
 	for rows.Next() {
 		var drop NearbyDrop
 		if err := rows.Scan(&drop.ID, &drop.Latitude, &drop.Longitude, &drop.PhotoURL, &drop.DistanceMeters); err != nil {

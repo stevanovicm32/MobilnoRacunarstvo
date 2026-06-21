@@ -92,7 +92,7 @@ func (r *postgresUserRepository) GetLeaderboard(limit int) ([]model.User, error)
 	}
 	defer rows.Close()
 
-	var users []model.User
+	users := make([]model.User, 0)
 	for rows.Next() {
 		var user model.User
 		if err := rows.Scan(&user.ID, &user.Username, &user.TotalPoints, &user.CreatedAt); err != nil {
