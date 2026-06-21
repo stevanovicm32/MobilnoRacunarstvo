@@ -4,8 +4,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.google.android.gms.maps.model.LatLng
 import com.stevanovicm32.mobilnoracunarstvo.GameApp
+import com.stevanovicm32.mobilnoracunarstvo.util.MapLatLng
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.HeatmapCellDto
 import com.stevanovicm32.mobilnoracunarstvo.util.ApiResult
 import com.stevanovicm32.mobilnoracunarstvo.util.DistanceUtils
@@ -39,7 +39,7 @@ class MapViewModel(
         trackingStarted = true
         viewModelScope.launch {
             app.locationTracker.locationUpdates().collect { location ->
-                val latLng = LatLng(location.latitude, location.longitude)
+                val latLng = MapLatLng(location.latitude, location.longitude)
                 _uiState.update { state ->
                     val canCreate = canCreateDrop(
                         accuracy = location.accuracyMeters,

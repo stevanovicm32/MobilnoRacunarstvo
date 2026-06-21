@@ -2,10 +2,10 @@ package com.stevanovicm32.mobilnoracunarstvo.ui.map
 
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.HeatmapCellDto
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.NearbyDropDto
-import com.google.android.gms.maps.model.LatLng
+import com.stevanovicm32.mobilnoracunarstvo.util.MapLatLng
 
 data class MapUiState(
-    val userLocation: LatLng? = null,
+    val userLocation: MapLatLng? = null,
     val locationAccuracy: Float? = null,
     val heatmapCells: List<HeatmapCellDto> = emptyList(),
     val nearbyDrops: List<NearbyDropDto> = emptyList(),
