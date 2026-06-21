@@ -21,7 +21,7 @@ class DropRepository(private val api: GameApiService) {
         maxLat: Double,
         maxLng: Double,
     ): ApiResult<List<HeatmapCellDto>> = safeCall {
-        api.getHeatmap(minLat, minLng, maxLat, maxLng).cells
+        api.getHeatmap(minLat, minLng, maxLat, maxLng).cells.orEmpty()
     }
 
     suspend fun getNearbyDrops(
@@ -29,7 +29,7 @@ class DropRepository(private val api: GameApiService) {
         longitude: Double,
         radius: Int = 20,
     ): ApiResult<List<NearbyDropDto>> = safeCall {
-        api.getNearbyDrops(latitude, longitude, radius).drops
+        api.getNearbyDrops(latitude, longitude, radius).drops.orEmpty()
     }
 
     suspend fun createDrop(

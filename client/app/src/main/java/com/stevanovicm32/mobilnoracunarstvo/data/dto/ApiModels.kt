@@ -59,7 +59,7 @@ data class DropDto(
 
 @Serializable
 data class HeatmapResponse(
-    val cells: List<HeatmapCellDto> = emptyList(),
+    val cells: List<HeatmapCellDto>? = null,
 )
 
 @Serializable
@@ -71,7 +71,7 @@ data class HeatmapCellDto(
 
 @Serializable
 data class NearbyDropsResponse(
-    val drops: List<NearbyDropDto> = emptyList(),
+    val drops: List<NearbyDropDto>? = null,
 )
 
 @Serializable
