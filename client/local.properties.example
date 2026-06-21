@@ -1,3 +1,2 @@
-sdk.dir=/path/to/Android/sdk
-MAPS_API_KEY=your_google_maps_api_key
-API_BASE_URL=http://10.0.2.2:8080/
+sdk.dir=/opt/android-sdk
+API_BASE_URL=http://192.168.0.69:8080/

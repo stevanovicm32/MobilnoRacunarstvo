@@ -30,7 +30,6 @@ android {
             "API_BASE_URL",
             "\"${localProperties.getProperty("API_BASE_URL", "http://10.0.2.2:8080/")}\""
         )
-        manifestPlaceholders["MAPS_API_KEY"] = localProperties.getProperty("MAPS_API_KEY", "")
     }
 
     buildFeatures {
@@ -75,8 +74,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     implementation("com.google.android.gms:play-services-location:21.3.0")
-    implementation("com.google.maps.android:maps-compose:6.2.1")
-    implementation("com.google.android.gms:play-services-maps:19.0.0")
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
