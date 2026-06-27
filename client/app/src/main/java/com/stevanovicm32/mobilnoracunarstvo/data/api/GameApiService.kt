@@ -5,6 +5,7 @@ import com.stevanovicm32.mobilnoracunarstvo.data.dto.ClaimDropResponse
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.CreateDropRequest
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.CreateDropResponse
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.HeatmapResponse
+import com.stevanovicm32.mobilnoracunarstvo.data.dto.LeaderboardResponse
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.LoginRequest
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.LoginResponse
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.MessageResponse
@@ -46,4 +47,7 @@ interface GameApiService {
         @Path("id") dropId: String,
         @Body body: ClaimDropRequest,
     ): ClaimDropResponse
+
+    @GET("api/leaderboard")
+    suspend fun getLeaderboard(): LeaderboardResponse
 }

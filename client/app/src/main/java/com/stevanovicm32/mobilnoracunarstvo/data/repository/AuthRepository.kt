@@ -1,6 +1,7 @@
 package com.stevanovicm32.mobilnoracunarstvo.data.repository
 
 import com.stevanovicm32.mobilnoracunarstvo.data.api.GameApiService
+import com.stevanovicm32.mobilnoracunarstvo.data.auth.SessionManager
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.ErrorResponse
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.LoginRequest
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.LoginResponse
@@ -13,6 +14,7 @@ import retrofit2.HttpException
 class AuthRepository(
     private val api: GameApiService,
     private val tokenStore: TokenStore,
+    private val sessionManager: SessionManager,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -36,7 +38,7 @@ class AuthRepository(
     }
 
     suspend fun logout() {
-        tokenStore.clear()
+        sessionManager.clearSession()
     }
 
     suspend fun isLoggedIn(): Boolean = tokenStore.isLoggedIn()
