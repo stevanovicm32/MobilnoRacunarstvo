@@ -36,8 +36,10 @@ class DropRepository(private val api: GameApiService) {
         latitude: Double,
         longitude: Double,
         photoUrl: String,
+        description: String,
+        hint: String,
     ): ApiResult<CreateDropResponse> = safeCall {
-        api.createDrop(CreateDropRequest(latitude, longitude, photoUrl))
+        api.createDrop(CreateDropRequest(latitude, longitude, photoUrl, description, hint))
     }
 
     suspend fun claimDrop(

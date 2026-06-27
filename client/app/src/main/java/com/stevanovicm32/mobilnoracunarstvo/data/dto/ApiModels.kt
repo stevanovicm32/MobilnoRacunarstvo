@@ -38,6 +38,8 @@ data class CreateDropRequest(
     val latitude: Double,
     val longitude: Double,
     @SerialName("photo_url") val photoUrl: String,
+    val description: String = "",
+    val hint: String = "",
 )
 
 @Serializable
@@ -51,6 +53,8 @@ data class DropDto(
     @SerialName("creator_id") val creatorId: String,
     val latitude: Double,
     val longitude: Double,
+    val description: String = "",
+    val hint: String = "",
     @SerialName("photo_url") val photoUrl: String,
     @SerialName("created_at") val createdAt: String,
     @SerialName("active_at") val activeAt: String,
@@ -80,6 +84,8 @@ data class NearbyDropDto(
     val latitude: Double,
     val longitude: Double,
     @SerialName("photo_url") val photoUrl: String,
+    val description: String = "",
+    val hint: String = "",
     @SerialName("distance_meters") val distanceMeters: Double,
 )
 
@@ -101,6 +107,23 @@ data class ClaimDto(
     @SerialName("user_id") val userId: String,
     @SerialName("points_awarded") val pointsAwarded: Int,
     @SerialName("claimed_at") val claimedAt: String,
+)
+
+@Serializable
+data class UploadResponse(
+    @SerialName("photo_url") val photoUrl: String,
+)
+
+@Serializable
+data class LeaderboardResponse(
+    val leaderboard: List<LeaderboardEntryDto>? = null,
+)
+
+@Serializable
+data class LeaderboardEntryDto(
+    val id: String,
+    val username: String,
+    @SerialName("total_points") val totalPoints: Int,
 )
 
 @Serializable
