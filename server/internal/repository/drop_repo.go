@@ -33,15 +33,17 @@ type HeatmapCell struct {
 }
 
 type NearbyDrop struct {
-	ID              uuid.UUID `json:"id"`
-	Latitude        float64   `json:"latitude"`
-	Longitude       float64   `json:"longitude"`
-	PhotoURL        string    `json:"photo_url"`
-	DistanceMeters  float64   `json:"distance_meters"`
+	ID             uuid.UUID `json:"id"`
+	Latitude       float64   `json:"latitude"`
+	Longitude      float64   `json:"longitude"`
+	PhotoURL       string    `json:"photo_url"`
+	Description    string    `json:"description"`
+	Hint           string    `json:"hint"`
+	DistanceMeters float64   `json:"distance_meters"`
 }
 
 type DropRepository interface {
-	CreateDrop(ctx context.Context, creatorID uuid.UUID, latitude, longitude float64, photoURL string) (*model.Drop, error)
+	CreateDrop(ctx context.Context, creatorID uuid.UUID, latitude, longitude float64, photoURL, description, hint string) (*model.Drop, error)
 	GetHeatmap(ctx context.Context, bbox BoundingBox) ([]HeatmapCell, error)
 	GetNearbyDrops(ctx context.Context, latitude, longitude float64, radiusMeters float64) ([]NearbyDrop, error)
 	ClaimDrop(ctx context.Context, userID, dropID uuid.UUID, latitude, longitude float64) (*model.Claim, error)
@@ -53,7 +55,7 @@ func NewDropRepository() DropRepository {
 	return &postgresDropRepository{}
 }
 
-func (r *postgresDropRepository) CreateDrop(ctx context.Context, creatorID uuid.UUID, latitude, longitude float64, photoURL string) (*model.Drop, error) {
+func (r *postgresDropRepository) CreateDrop(ctx context.Context, creatorID uuid.UUID, latitude, longitude float64, photoURL, description, hint string) (*model.Drop, error) {
 	var exists bool
 	err := DB.QueryRow(
 		ctx,
@@ -80,17 +82,21 @@ func (r *postgresDropRepository) CreateDrop(ctx context.Context, creatorID uuid.
 	var drop model.Drop
 	err = DB.QueryRow(
 		ctx,
-		`INSERT INTO drops (creator_id, location, photo_url, active_at)
+		`INSERT INTO drops (creator_id, location, photo_url, description, hint, active_at)
 		 VALUES (
 			$1,
 			ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
 			$4,
+			$5,
+			$6,
 			now() + ((7200 + floor(random() * 36001)) * interval '1 second')
 		 )
 		 RETURNING id,
 		           creator_id,
 		           ST_Y(location::geometry) AS latitude,
 		           ST_X(location::geometry) AS longitude,
+		           description,
+		           hint,
 		           photo_url,
 		           created_at,
 		           active_at,
@@ -99,11 +105,15 @@ func (r *postgresDropRepository) CreateDrop(ctx context.Context, creatorID uuid.
 		longitude,
 		latitude,
 		photoURL,
+		description,
+		hint,
 	).Scan(
 		&drop.ID,
 		&drop.CreatorID,
 		&drop.Latitude,
 		&drop.Longitude,
+		&drop.Description,
+		&drop.Hint,
 		&drop.PhotoURL,
 		&drop.CreatedAt,
 		&drop.ActiveAt,
@@ -162,6 +172,8 @@ func (r *postgresDropRepository) GetNearbyDrops(ctx context.Context, latitude, l
 		        ST_Y(location::geometry) AS latitude,
 		        ST_X(location::geometry) AS longitude,
 		        photo_url,
+		        description,
+		        hint,
 		        ST_Distance(
 		          location,
 		          ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
@@ -186,7 +198,15 @@ func (r *postgresDropRepository) GetNearbyDrops(ctx context.Context, latitude, l
 	drops := make([]NearbyDrop, 0)
 	for rows.Next() {
 		var drop NearbyDrop
-		if err := rows.Scan(&drop.ID, &drop.Latitude, &drop.Longitude, &drop.PhotoURL, &drop.DistanceMeters); err != nil {
+		if err := rows.Scan(
+			&drop.ID,
+			&drop.Latitude,
+			&drop.Longitude,
+			&drop.PhotoURL,
+			&drop.Description,
+			&drop.Hint,
+			&drop.DistanceMeters,
+		); err != nil {
 			return nil, err
 		}
 		drops = append(drops, drop)

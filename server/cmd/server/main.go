@@ -14,7 +14,8 @@ func main() {
 
 	authHandler := api.NewAuthHandler(userRepo)
 	dropHandler := api.NewDropHandler(dropRepo, userRepo)
+	uploadHandler := api.NewUploadHandler()
 
-	r := api.SetupRouter(authHandler, dropHandler)
+	r := api.SetupRouter(authHandler, dropHandler, uploadHandler)
 	r.Run()
 }

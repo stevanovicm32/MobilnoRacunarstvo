@@ -24,9 +24,11 @@ func (h *DropHandler) CreateDrop(c *gin.Context) {
 	userID := c.MustGet("userID").(uuid.UUID)
 
 	var req struct {
-		Latitude  *float64 `json:"latitude"`
-		Longitude *float64 `json:"longitude"`
-		PhotoURL  string   `json:"photo_url"`
+		Latitude    *float64 `json:"latitude"`
+		Longitude   *float64 `json:"longitude"`
+		PhotoURL    string   `json:"photo_url"`
+		Description string   `json:"description"`
+		Hint        string   `json:"hint"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON body"})
@@ -42,7 +44,15 @@ func (h *DropHandler) CreateDrop(c *gin.Context) {
 		return
 	}
 
-	drop, err := h.dropRepo.CreateDrop(c.Request.Context(), userID, *req.Latitude, *req.Longitude, strings.TrimSpace(req.PhotoURL))
+	drop, err := h.dropRepo.CreateDrop(
+		c.Request.Context(),
+		userID,
+		*req.Latitude,
+		*req.Longitude,
+		strings.TrimSpace(req.PhotoURL),
+		strings.TrimSpace(req.Description),
+		strings.TrimSpace(req.Hint),
+	)
 	if err != nil {
 		switch {
 		case errors.Is(err, repository.ErrWeeklyLimit):

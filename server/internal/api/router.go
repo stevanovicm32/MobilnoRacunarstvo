@@ -10,11 +10,14 @@ import (
 func SetupRouter(
 	authH *AuthHandler,
 	dropH *DropHandler,
+	uploadH *UploadHandler,
 ) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
+
+	r.Static("/uploads", "./uploads")
 
 	// Routes
 	r.GET("/ping", func(ctx *gin.Context) { ctx.JSON(http.StatusOK, gin.H{"message": "pong"}) })
@@ -28,6 +31,7 @@ func SetupRouter(
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware())
 	{
+		api.POST("/uploads", uploadH.UploadImage)
 		api.POST("/drops", dropH.CreateDrop)
 		api.GET("/drops/heatmap", dropH.GetHeatmap)
 		api.GET("/drops/nearby", dropH.GetNearbyDrops)
