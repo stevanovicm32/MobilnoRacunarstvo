@@ -1,5 +1,6 @@
 package com.stevanovicm32.mobilnoracunarstvo.ui.map
 
+import android.net.Uri
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.HeatmapCellDto
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.NearbyDropDto
 import com.stevanovicm32.mobilnoracunarstvo.util.MapLatLng
@@ -16,9 +17,14 @@ data class MapUiState(
     val isClaimingDrop: Boolean = false,
     val claimableDrop: NearbyDropDto? = null,
     val canCreateDrop: Boolean = false,
+    val dropBlockedReason: String? = null,
+    val showCreateDropSheet: Boolean = false,
+    val dropDescription: String = "",
+    val dropHint: String = "",
+    val dropPhotoUri: Uri? = null,
     val snackbarMessage: String? = null,
     val showPoorGpsDialog: Boolean = false,
     val showClaimSuccessDialog: Boolean = false,
     val lastPointsAwarded: Int? = null,
-    val shouldLaunchCamera: Boolean = false,
+    val logoutRequested: Boolean = false,
 )

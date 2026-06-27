@@ -1,6 +1,8 @@
 package com.stevanovicm32.mobilnoracunarstvo.ui.map
 
 import android.graphics.Color
+import android.view.View
+import android.widget.TextView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -15,6 +17,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.stevanovicm32.mobilnoracunarstvo.R
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.HeatmapCellDto
 import com.stevanovicm32.mobilnoracunarstvo.data.dto.NearbyDropDto
 import com.stevanovicm32.mobilnoracunarstvo.util.MapLatLng
@@ -29,10 +32,25 @@ import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
+import org.osmdroid.views.overlay.infowindow.BasicInfoWindow
+import org.osmdroid.views.overlay.infowindow.InfoWindow
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
 private val defaultLocation = MapLatLng(44.816, 20.460)
+
+private class DropInfoWindow(mapView: MapView) : BasicInfoWindow(R.layout.drop_info_bubble, mapView) {
+    override fun onOpen(item: Any?) {
+        super.onOpen(item)
+        mView?.let { view ->
+            view.findViewById<TextView>(R.id.bubble_title)?.setTextColor(Color.parseColor("#212121"))
+            view.findViewById<TextView>(R.id.bubble_description)?.apply {
+                setTextColor(Color.parseColor("#424242"))
+                visibility = if (text.isNullOrBlank()) View.GONE else View.VISIBLE
+            }
+        }
+    }
+}
 
 @Composable
 fun OsmMap(
@@ -134,6 +152,8 @@ private fun updateOverlays(
     heatmapCells: List<HeatmapCellDto>,
     nearbyDrops: List<NearbyDropDto>,
 ) {
+    InfoWindow.closeAllInfoWindowsOn(mapView)
+
     val locationOverlay = mapView.overlays.firstOrNull { it is MyLocationNewOverlay }
     mapView.overlays.clear()
     locationOverlay?.let { mapView.overlays.add(it) }
@@ -148,14 +168,30 @@ private fun updateOverlays(
         mapView.overlays.add(polygon)
     }
 
+    val dropInfoWindow = dropInfoWindowFor(mapView)
     nearbyDrops.forEach { drop ->
         val marker = Marker(mapView).apply {
             position = GeoPoint(drop.latitude, drop.longitude)
-            title = "Claimable drop"
+            title = drop.description.ifBlank { "Nearby drop" }
+            snippet = drop.hint.takeIf { it.isNotBlank() }?.let { "Hint: $it" }.orEmpty()
+            infoWindow = dropInfoWindow
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            setOnMarkerClickListener { clickedMarker, _ ->
+                clickedMarker.showInfoWindow()
+                true
+            }
         }
         mapView.overlays.add(marker)
     }
 
     mapView.invalidate()
+}
+
+private fun dropInfoWindowFor(mapView: MapView): DropInfoWindow {
+    val tagKey = "drop_info_window"
+    val existing = mapView.getTag(tagKey.hashCode()) as? DropInfoWindow
+    if (existing != null) {
+        return existing
+    }
+    return DropInfoWindow(mapView).also { mapView.setTag(tagKey.hashCode(), it) }
 }

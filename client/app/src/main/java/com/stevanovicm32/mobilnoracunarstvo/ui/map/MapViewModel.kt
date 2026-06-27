@@ -5,10 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.stevanovicm32.mobilnoracunarstvo.GameApp
-import com.stevanovicm32.mobilnoracunarstvo.util.MapLatLng
-import com.stevanovicm32.mobilnoracunarstvo.data.dto.HeatmapCellDto
 import com.stevanovicm32.mobilnoracunarstvo.util.ApiResult
 import com.stevanovicm32.mobilnoracunarstvo.util.DistanceUtils
+import com.stevanovicm32.mobilnoracunarstvo.util.MapLatLng
 import com.stevanovicm32.mobilnoracunarstvo.util.PhotoUploader
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,17 +40,15 @@ class MapViewModel(
             app.locationTracker.locationUpdates().collect { location ->
                 val latLng = MapLatLng(location.latitude, location.longitude)
                 _uiState.update { state ->
-                    val canCreate = canCreateDrop(
+                    val eligibility = evaluateDropEligibility(
                         accuracy = location.accuracyMeters,
-                        userLat = location.latitude,
-                        userLng = location.longitude,
-                        cells = state.heatmapCells,
                         weeklyAvailable = state.weeklyDropAvailable,
                     )
                     state.copy(
                         userLocation = latLng,
                         locationAccuracy = location.accuracyMeters,
-                        canCreateDrop = canCreate,
+                        canCreateDrop = eligibility.canCreate,
+                        dropBlockedReason = eligibility.reason,
                     )
                 }
                 if (location.accuracyMeters <= DistanceUtils.GPS_MIN_ACCURACY_M) {
@@ -73,25 +70,7 @@ class MapViewModel(
                 )
             ) {
                 is ApiResult.Success -> {
-                    _uiState.update { state ->
-                        val userLoc = state.userLocation
-                        val canCreate = if (userLoc != null && state.locationAccuracy != null) {
-                            canCreateDrop(
-                                accuracy = state.locationAccuracy,
-                                userLat = userLoc.latitude,
-                                userLng = userLoc.longitude,
-                                cells = result.data,
-                                weeklyAvailable = state.weeklyDropAvailable,
-                            )
-                        } else {
-                            false
-                        }
-                        state.copy(
-                            heatmapCells = result.data,
-                            isLoadingHeatmap = false,
-                            canCreateDrop = canCreate,
-                        )
-                    }
+                    _uiState.update { it.copy(heatmapCells = result.data, isLoadingHeatmap = false) }
                 }
                 is ApiResult.Error -> {
                     _uiState.update {
@@ -139,71 +118,135 @@ class MapViewModel(
 
     fun onLeaveDropClicked() {
         val state = _uiState.value
-        val accuracy = state.locationAccuracy
-        if (accuracy == null || accuracy > DistanceUtils.GPS_MIN_ACCURACY_M) {
-            _uiState.update { it.copy(showPoorGpsDialog = true) }
-            return
-        }
-        if (!state.canCreateDrop) {
-            _uiState.update {
-                it.copy(snackbarMessage = "Cannot leave a drop here right now.")
+        val eligibility = evaluateDropEligibility(
+            accuracy = state.locationAccuracy,
+            weeklyAvailable = state.weeklyDropAvailable,
+        )
+        if (!eligibility.canCreate) {
+            if (state.locationAccuracy == null ||
+                state.locationAccuracy > DistanceUtils.GPS_MIN_ACCURACY_M
+            ) {
+                _uiState.update { it.copy(showPoorGpsDialog = true) }
+            } else {
+                _uiState.update {
+                    it.copy(snackbarMessage = eligibility.reason ?: "Cannot leave a drop here right now.")
+                }
             }
             return
         }
-        _uiState.update { it.copy(shouldLaunchCamera = true) }
+        _uiState.update {
+            it.copy(
+                showCreateDropSheet = true,
+                dropDescription = "",
+                dropHint = "",
+                dropPhotoUri = null,
+            )
+        }
     }
 
-    fun onCameraLaunched() {
-        _uiState.update { it.copy(shouldLaunchCamera = false) }
+    fun dismissCreateDropSheet() {
+        _uiState.update {
+            it.copy(
+                showCreateDropSheet = false,
+                dropDescription = "",
+                dropHint = "",
+                dropPhotoUri = null,
+            )
+        }
     }
 
-    fun dismissPoorGpsDialog() {
-        _uiState.update { it.copy(showPoorGpsDialog = false) }
+    fun onDropDescriptionChange(value: String) {
+        _uiState.update { it.copy(dropDescription = value) }
     }
 
-    fun createDrop(photoUri: Uri) {
+    fun onDropHintChange(value: String) {
+        _uiState.update { it.copy(dropHint = value) }
+    }
+
+    fun onDropPhotoSelected(uri: Uri) {
+        _uiState.update { it.copy(dropPhotoUri = uri) }
+    }
+
+    fun submitDrop() {
         val state = _uiState.value
         val location = state.userLocation ?: return
-        val accuracy = state.locationAccuracy
-        if (accuracy == null || accuracy > DistanceUtils.GPS_MIN_ACCURACY_M) {
-            _uiState.update { it.copy(showPoorGpsDialog = true) }
+        val photoUri = state.dropPhotoUri
+        if (photoUri == null) {
+            _uiState.update { it.copy(snackbarMessage = "Add a photo before submitting.") }
+            return
+        }
+
+        val eligibility = evaluateDropEligibility(
+            accuracy = state.locationAccuracy,
+            weeklyAvailable = state.weeklyDropAvailable,
+        )
+        if (!eligibility.canCreate) {
+            _uiState.update {
+                it.copy(snackbarMessage = eligibility.reason ?: "Cannot leave a drop here right now.")
+            }
             return
         }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isCreatingDrop = true) }
-            val photoUrl = PhotoUploader.upload(photoUri)
-            when (
-                val result = app.dropRepository.createDrop(
-                    latitude = location.latitude,
-                    longitude = location.longitude,
-                    photoUrl = photoUrl,
-                )
-            ) {
-                is ApiResult.Success -> {
-                    val activeAt = formatActiveAt(result.data.drop.activeAt)
-                    _uiState.update {
-                        it.copy(
-                            isCreatingDrop = false,
-                            weeklyDropAvailable = false,
-                            canCreateDrop = false,
-                            snackbarMessage = "Drop created! It becomes visible at $activeAt.",
+            try {
+                val photoUrl = PhotoUploader.upload(app, app.tokenStore, app.sessionManager, photoUri)
+                when (
+                    val result = app.dropRepository.createDrop(
+                        latitude = location.latitude,
+                        longitude = location.longitude,
+                        photoUrl = photoUrl,
+                        description = state.dropDescription.trim(),
+                        hint = state.dropHint.trim(),
+                    )
+                ) {
+                    is ApiResult.Success -> {
+                        val activeAt = formatActiveAt(result.data.drop.activeAt)
+                        _uiState.update {
+                            it.copy(
+                                isCreatingDrop = false,
+                                showCreateDropSheet = false,
+                                dropDescription = "",
+                                dropHint = "",
+                                dropPhotoUri = null,
+                                weeklyDropAvailable = false,
+                                canCreateDrop = false,
+                                dropBlockedReason = "Weekly drop already used.",
+                                snackbarMessage = "Drop created! It becomes visible at $activeAt.",
+                            )
+                        }
+                    }
+                    is ApiResult.Error -> {
+                        val weeklyUsed = result.code == 409 &&
+                            result.message.contains("Weekly limit", ignoreCase = true)
+                        val eligibilityAfter = evaluateDropEligibility(
+                            accuracy = state.locationAccuracy,
+                            weeklyAvailable = if (weeklyUsed) false else state.weeklyDropAvailable,
                         )
+                        _uiState.update {
+                            it.copy(
+                                isCreatingDrop = false,
+                                weeklyDropAvailable = if (weeklyUsed) false else it.weeklyDropAvailable,
+                                canCreateDrop = eligibilityAfter.canCreate,
+                                dropBlockedReason = eligibilityAfter.reason,
+                                snackbarMessage = mapCreateError(result.message),
+                            )
+                        }
                     }
                 }
-                is ApiResult.Error -> {
-                    val weeklyUsed = result.code == 409 &&
-                        result.message.contains("Weekly limit", ignoreCase = true)
-                    _uiState.update {
-                        it.copy(
-                            isCreatingDrop = false,
-                            weeklyDropAvailable = if (weeklyUsed) false else it.weeklyDropAvailable,
-                            snackbarMessage = mapCreateError(result.message),
-                        )
-                    }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isCreatingDrop = false,
+                        snackbarMessage = e.message ?: "Failed to upload photo",
+                    )
                 }
             }
         }
+    }
+
+    fun dismissPoorGpsDialog() {
+        _uiState.update { it.copy(showPoorGpsDialog = false) }
     }
 
     fun claimDrop() {
@@ -270,20 +313,25 @@ class MapViewModel(
         _uiState.update { it.copy(snackbarMessage = null) }
     }
 
-    private fun canCreateDrop(
-        accuracy: Float,
-        userLat: Double,
-        userLng: Double,
-        cells: List<HeatmapCellDto>,
+    private data class DropEligibility(
+        val canCreate: Boolean,
+        val reason: String?,
+    )
+
+    private fun evaluateDropEligibility(
+        accuracy: Float?,
         weeklyAvailable: Boolean,
-    ): Boolean {
-        if (!weeklyAvailable) return false
-        if (accuracy > DistanceUtils.GPS_MIN_ACCURACY_M) return false
-        val tooClose = cells.any { cell ->
-            DistanceUtils.distanceMeters(userLat, userLng, cell.latitude, cell.longitude) <
-                DistanceUtils.CREATE_MIN_DISTANCE_M
+    ): DropEligibility {
+        if (!weeklyAvailable) {
+            return DropEligibility(false, "Weekly drop already used.")
         }
-        return !tooClose
+        if (accuracy == null) {
+            return DropEligibility(false, "Waiting for GPS fix.")
+        }
+        if (accuracy > DistanceUtils.GPS_MIN_ACCURACY_M) {
+            return DropEligibility(false, "GPS accuracy is poor (> 20 m).")
+        }
+        return DropEligibility(true, null)
     }
 
     private fun mapCreateError(message: String): String = when {
@@ -307,6 +355,17 @@ class MapViewModel(
         return runCatching {
             ZonedDateTime.parse(activeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
         }.getOrDefault(activeAt)
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            app.authRepository.logout()
+            _uiState.update { it.copy(logoutRequested = true) }
+        }
+    }
+
+    fun onLogoutHandled() {
+        _uiState.update { it.copy(logoutRequested = false) }
     }
 
     companion object {

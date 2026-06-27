@@ -6,16 +6,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.stevanovicm32.mobilnoracunarstvo.GameApp
 import com.stevanovicm32.mobilnoracunarstvo.ui.auth.LoginScreen
+import com.stevanovicm32.mobilnoracunarstvo.ui.leaderboard.LeaderboardScreen
 import com.stevanovicm32.mobilnoracunarstvo.ui.map.MapScreen
 
 object Routes {
     const val LOGIN = "login"
     const val MAP = "map"
+    const val LEADERBOARD = "leaderboard"
 }
 
 @Composable
@@ -28,6 +31,12 @@ fun AppNavHost() {
             Routes.MAP
         } else {
             Routes.LOGIN
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        GameApp.instance.sessionManager.sessionExpired.collect {
+            navController.navigateToLogin()
         }
     }
 
@@ -47,7 +56,28 @@ fun AppNavHost() {
             )
         }
         composable(Routes.MAP) {
-            MapScreen()
+            MapScreen(
+                onOpenLeaderboard = {
+                    navController.navigate(Routes.LEADERBOARD)
+                },
+                onLogout = {
+                    navController.navigateToLogin()
+                },
+            )
         }
+        composable(Routes.LEADERBOARD) {
+            LeaderboardScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+    }
+}
+
+private fun NavHostController.navigateToLogin() {
+    navigate(Routes.LOGIN) {
+        popUpTo(graph.startDestinationId) {
+            inclusive = true
+        }
+        launchSingleTop = true
     }
 }
