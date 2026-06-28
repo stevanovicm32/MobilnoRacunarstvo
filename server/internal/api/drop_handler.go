@@ -149,7 +149,7 @@ func (h *DropHandler) ClaimDrop(c *gin.Context) {
 		return
 	}
 
-	claim, err := h.dropRepo.ClaimDrop(c.Request.Context(), userID, dropID, *req.Latitude, *req.Longitude)
+	claim, drop, err := h.dropRepo.ClaimDrop(c.Request.Context(), userID, dropID, *req.Latitude, *req.Longitude)
 	if err != nil {
 		switch {
 		case errors.Is(err, repository.ErrDropNotFound):
@@ -166,7 +166,7 @@ func (h *DropHandler) ClaimDrop(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"claim": claim})
+	c.JSON(http.StatusOK, gin.H{"claim": claim, "drop": drop})
 }
 
 func (h *DropHandler) GetLeaderboard(c *gin.Context) {

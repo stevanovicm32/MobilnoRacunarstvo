@@ -63,6 +63,7 @@ import coil.compose.AsyncImage
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.stevanovicm32.mobilnoracunarstvo.GameApp
+import com.stevanovicm32.mobilnoracunarstvo.util.PhotoUrlUtils
 import java.io.File
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
@@ -161,22 +162,54 @@ fun MapScreen(
         )
     }
 
-    if (uiState.showClaimSuccessDialog && uiState.lastPointsAwarded != null) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissClaimSuccessDialog,
-            title = { Text("Drop claimed!") },
-            text = {
-                Text(
-                    "You earned ${uiState.lastPointsAwarded} points!" +
-                        if (uiState.lastPointsAwarded == 500) " (First claimer bonus)" else "",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissClaimSuccessDialog) {
-                    Text("OK")
-                }
-            },
-        )
+    uiState.claimedDrop?.let { claimedDrop ->
+        if (uiState.showClaimSuccessDialog) {
+            AlertDialog(
+                onDismissRequest = viewModel::dismissClaimSuccessDialog,
+                title = { Text("Drop claimed!") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (claimedDrop.photoUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = PhotoUrlUtils.resolve(claimedDrop.photoUrl),
+                                contentDescription = "Claimed drop photo",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                        if (claimedDrop.description.isNotBlank()) {
+                            Text(
+                                text = claimedDrop.description,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                        if (claimedDrop.hint.isNotBlank()) {
+                            Text(
+                                text = "Hint: ${claimedDrop.hint}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        uiState.lastPointsAwarded?.let { points ->
+                            Text(
+                                text = "You earned $points points!" +
+                                    if (points == 500) " (First claimer bonus)" else "",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = viewModel::dismissClaimSuccessDialog) {
+                        Text("OK")
+                    }
+                },
+            )
+        }
     }
 
     if (showLogoutDialog) {

@@ -25,6 +25,7 @@ data class MapUiState(
     val snackbarMessage: String? = null,
     val showPoorGpsDialog: Boolean = false,
     val showClaimSuccessDialog: Boolean = false,
+    val claimedDrop: NearbyDropDto? = null,
     val lastPointsAwarded: Int? = null,
     val logoutRequested: Boolean = false,
 )

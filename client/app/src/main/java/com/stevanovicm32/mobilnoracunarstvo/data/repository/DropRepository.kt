@@ -13,7 +13,11 @@ import kotlinx.serialization.json.Json
 import retrofit2.HttpException
 
 class DropRepository(private val api: GameApiService) {
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+        explicitNulls = false
+    }
 
     suspend fun getHeatmap(
         minLat: Double,
@@ -27,7 +31,7 @@ class DropRepository(private val api: GameApiService) {
     suspend fun getNearbyDrops(
         latitude: Double,
         longitude: Double,
-        radius: Int = 20,
+        radius: Int = 50,
     ): ApiResult<List<NearbyDropDto>> = safeCall {
         api.getNearbyDrops(latitude, longitude, radius).drops.orEmpty()
     }

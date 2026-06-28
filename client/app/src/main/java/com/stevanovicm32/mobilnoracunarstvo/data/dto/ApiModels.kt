@@ -83,10 +83,10 @@ data class NearbyDropDto(
     val id: String,
     val latitude: Double,
     val longitude: Double,
-    @SerialName("photo_url") val photoUrl: String,
-    val description: String = "",
-    val hint: String = "",
-    @SerialName("distance_meters") val distanceMeters: Double,
+    @SerialName("photo_url") val photoUrl: String = "",
+    @SerialName("description") val description: String = "",
+    @SerialName("hint") val hint: String = "",
+    @SerialName("distance_meters") val distanceMeters: Double = 0.0,
 )
 
 @Serializable
@@ -98,6 +98,7 @@ data class ClaimDropRequest(
 @Serializable
 data class ClaimDropResponse(
     val claim: ClaimDto,
+    val drop: NearbyDropDto? = null,
 )
 
 @Serializable

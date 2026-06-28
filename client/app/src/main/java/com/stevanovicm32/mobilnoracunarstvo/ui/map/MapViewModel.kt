@@ -106,12 +106,16 @@ class MapViewModel(
                     }
                     _uiState.update {
                         it.copy(
-                            nearbyDrops = inRange,
+                            nearbyDrops = result.data,
                             claimableDrop = claimable,
                         )
                     }
                 }
-                is ApiResult.Error -> Unit
+                is ApiResult.Error -> {
+                    _uiState.update {
+                        it.copy(snackbarMessage = result.message)
+                    }
+                }
             }
         }
     }
@@ -279,6 +283,7 @@ class MapViewModel(
                 is ApiResult.Success -> {
                     val awarded = result.data.claim.pointsAwarded
                     val newTotal = state.totalPoints + awarded
+                    val claimedDrop = result.data.drop ?: drop
                     app.tokenStore.updatePoints(newTotal)
                     _uiState.update {
                         it.copy(
@@ -286,6 +291,7 @@ class MapViewModel(
                             claimableDrop = null,
                             nearbyDrops = emptyList(),
                             totalPoints = newTotal,
+                            claimedDrop = claimedDrop,
                             lastPointsAwarded = awarded,
                             showClaimSuccessDialog = true,
                         )
@@ -305,7 +311,11 @@ class MapViewModel(
 
     fun dismissClaimSuccessDialog() {
         _uiState.update {
-            it.copy(showClaimSuccessDialog = false, lastPointsAwarded = null)
+            it.copy(
+                showClaimSuccessDialog = false,
+                claimedDrop = null,
+                lastPointsAwarded = null,
+            )
         }
     }
 

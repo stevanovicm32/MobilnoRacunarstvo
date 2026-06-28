@@ -46,7 +46,7 @@ type DropRepository interface {
 	CreateDrop(ctx context.Context, creatorID uuid.UUID, latitude, longitude float64, photoURL, description, hint string) (*model.Drop, error)
 	GetHeatmap(ctx context.Context, bbox BoundingBox) ([]HeatmapCell, error)
 	GetNearbyDrops(ctx context.Context, latitude, longitude float64, radiusMeters float64) ([]NearbyDrop, error)
-	ClaimDrop(ctx context.Context, userID, dropID uuid.UUID, latitude, longitude float64) (*model.Claim, error)
+	ClaimDrop(ctx context.Context, userID, dropID uuid.UUID, latitude, longitude float64) (*model.Claim, *NearbyDrop, error)
 }
 
 type postgresDropRepository struct{}
@@ -215,16 +215,21 @@ func (r *postgresDropRepository) GetNearbyDrops(ctx context.Context, latitude, l
 	return drops, rows.Err()
 }
 
-func (r *postgresDropRepository) ClaimDrop(ctx context.Context, userID, dropID uuid.UUID, latitude, longitude float64) (*model.Claim, error) {
+func (r *postgresDropRepository) ClaimDrop(ctx context.Context, userID, dropID uuid.UUID, latitude, longitude float64) (*model.Claim, *NearbyDrop, error) {
 	tx, err := DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer tx.Rollback(ctx)
 
 	var isActive bool
 	var isWithinRadius bool
 	var isFirstClaim bool
+	var dropLatitude float64
+	var dropLongitude float64
+	var photoURL string
+	var description string
+	var hint string
 
 	// FOR UPDATE serializes claim attempts for this drop. Only the transaction
 	// holding the row lock can observe and set first_claimer_id, so the 500-point
@@ -237,25 +242,39 @@ func (r *postgresDropRepository) ClaimDrop(ctx context.Context, userID, dropID u
 		          ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
 		          20
 		        ) AS is_within_radius,
-		        first_claimer_id IS NULL AS is_first_claim
+		        first_claimer_id IS NULL AS is_first_claim,
+		        ST_Y(location::geometry) AS latitude,
+		        ST_X(location::geometry) AS longitude,
+		        photo_url,
+		        description,
+		        hint
 		 FROM drops
 		 WHERE id = $1
 		 FOR UPDATE`,
 		dropID,
 		longitude,
 		latitude,
-	).Scan(&isActive, &isWithinRadius, &isFirstClaim)
+	).Scan(
+		&isActive,
+		&isWithinRadius,
+		&isFirstClaim,
+		&dropLatitude,
+		&dropLongitude,
+		&photoURL,
+		&description,
+		&hint,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrDropNotFound
+		return nil, nil, ErrDropNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !isActive {
-		return nil, ErrDropInactive
+		return nil, nil, ErrDropInactive
 	}
 	if !isWithinRadius {
-		return nil, ErrTooFarFromDrop
+		return nil, nil, ErrTooFarFromDrop
 	}
 
 	points := 50
@@ -281,27 +300,37 @@ func (r *postgresDropRepository) ClaimDrop(ctx context.Context, userID, dropID u
 		claim.PointsAwarded,
 	).Scan(&claim.ClaimedAt)
 	if isUniqueViolation(err, "claims_drop_id_user_id_key") {
-		return nil, ErrAlreadyClaimed
+		return nil, nil, ErrAlreadyClaimed
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if isFirstClaim {
 		if _, err := tx.Exec(ctx, `UPDATE drops SET first_claimer_id = $1 WHERE id = $2`, userID, dropID); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	if _, err := tx.Exec(ctx, `UPDATE users SET total_points = total_points + $1 WHERE id = $2`, points, userID); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return claim, nil
+	drop := &NearbyDrop{
+		ID:             dropID,
+		Latitude:       dropLatitude,
+		Longitude:      dropLongitude,
+		PhotoURL:       photoURL,
+		Description:    description,
+		Hint:           hint,
+		DistanceMeters: 0,
+	}
+
+	return claim, drop, nil
 }
 
 func isUniqueViolation(err error, constraintName string) bool {

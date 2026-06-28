@@ -15,6 +15,8 @@ object ApiClient {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
+        coerceInputValues = true
+        explicitNulls = false
     }
 
     fun create(tokenStore: TokenStore, sessionManager: SessionManager): GameApiService {
