@@ -22,16 +22,17 @@ import androidx.compose.material.icons.filled.AddLocation
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Leaderboard
-import androidx.compose.material.icons.filled.Logout
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -295,7 +296,9 @@ fun MapScreen(
                 uiState.claimableDrop?.let { drop ->
                     Card(
                         modifier = Modifier.fillMaxWidth(0.85f),
-                        containerColor = MaterialTheme.colorScheme.surface,
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -386,38 +389,61 @@ private fun StatusBar(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding(),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Star, contentDescription = null)
-                Text(
-                    text = "Points: $totalPoints",
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
-            Text(
-                text = if (weeklyDropAvailable) "Weekly drop: available" else "Weekly drop: used",
-                color = if (weeklyDropAvailable) Color(0xFF4CAF50) else Color(0xFFE57373),
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (accuracy != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Star, contentDescription = null)
                     Text(
-                        text = "GPS ±${accuracy.toInt()}m",
-                        modifier = Modifier.padding(end = 4.dp),
+                        text = "Points: $totalPoints",
+                        modifier = Modifier.padding(start = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
-                IconButton(onClick = onOpenLeaderboard) {
-                    Icon(Icons.Default.Leaderboard, contentDescription = "Leaderboard")
+                Text(
+                    text = if (weeklyDropAvailable) "Weekly drop: available" else "Weekly drop: used",
+                    color = if (weeklyDropAvailable) Color(0xFF4CAF50) else Color(0xFFE57373),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            if (accuracy != null) {
+                Text(
+                    text = "GPS ±${accuracy.toInt()}m",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onOpenLeaderboard,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Default.Leaderboard, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Leaderboard")
                 }
-                IconButton(onClick = onLogout) {
-                    Icon(Icons.Default.Logout, contentDescription = "Log out")
+                OutlinedButton(
+                    onClick = onLogout,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Log out")
                 }
             }
         }

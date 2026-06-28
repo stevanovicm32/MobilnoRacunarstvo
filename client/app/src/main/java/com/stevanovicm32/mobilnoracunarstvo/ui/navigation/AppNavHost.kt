@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -14,6 +15,7 @@ import com.stevanovicm32.mobilnoracunarstvo.GameApp
 import com.stevanovicm32.mobilnoracunarstvo.ui.auth.LoginScreen
 import com.stevanovicm32.mobilnoracunarstvo.ui.leaderboard.LeaderboardScreen
 import com.stevanovicm32.mobilnoracunarstvo.ui.map.MapScreen
+import kotlinx.coroutines.launch
 
 object Routes {
     const val LOGIN = "login"
@@ -24,7 +26,15 @@ object Routes {
 @Composable
 fun AppNavHost() {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
     var startDestination by remember { mutableStateOf<String?>(null) }
+
+    fun logout() {
+        scope.launch {
+            GameApp.instance.authRepository.logout()
+            navController.navigateToLogin()
+        }
+    }
 
     LaunchedEffect(Unit) {
         startDestination = if (GameApp.instance.authRepository.isLoggedIn()) {
@@ -60,14 +70,13 @@ fun AppNavHost() {
                 onOpenLeaderboard = {
                     navController.navigate(Routes.LEADERBOARD)
                 },
-                onLogout = {
-                    navController.navigateToLogin()
-                },
+                onLogout = ::logout,
             )
         }
         composable(Routes.LEADERBOARD) {
             LeaderboardScreen(
                 onBack = { navController.popBackStack() },
+                onLogout = ::logout,
             )
         }
     }
